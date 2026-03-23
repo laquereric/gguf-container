@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-git clone https://github.com/laquereric/llama-1b-container.git
-cd llama-1b-container
-podman build -t llama-cpp-vulkan -f Containerfile.llama-vulkan .
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MAC_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+cd "$MAC_DIR"
+podman build -t llama-cpp-vulkan -f Containerfile ..
