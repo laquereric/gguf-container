@@ -1,21 +1,22 @@
 # Containerfile for llama.cpp with Vulkan support on macOS (via libkrun)
-# Based on Fedora 40 to use the patched mesa-krunkit drivers
+# Uses AlmaLinux 9 to match the available slp/mesa-krunkit COPR (epel-9-aarch64)
 
-FROM fedora:40 AS builder
+FROM almalinux:9 AS builder
 
 USER 0
 
-# 1. Install patched mesa driver for GPU remoting (virtio-gpu Venus)
-RUN dnf -y install dnf-plugins-core \
+# 1. Enable EPEL + CRB, then install patched mesa driver for GPU remoting (virtio-gpu Venus)
+RUN dnf -y install dnf-plugins-core epel-release \
+    && dnf config-manager --set-enabled crb \
     && dnf -y install dnf-plugin-versionlock \
     && dnf -y install mesa-vulkan-drivers vulkan-loader-devel vulkan-headers vulkan-tools \
-    && dnf -y copr enable slp/mesa-krunkit fedora-40-aarch64 \
+    && dnf -y copr enable slp/mesa-krunkit epel-9-aarch64 \
     && dnf -y downgrade mesa-vulkan-drivers.aarch64 --repo=copr:copr.fedorainfracloud.org:slp:mesa-krunkit \
     && dnf versionlock mesa-vulkan-drivers
 
 # 2. Install build dependencies for llama.cpp
-RUN dnf -y install git @development-tools gcc-c++ \
-    cmake wget libcurl-devel curl glslc
+RUN dnf -y groupinstall "Development Tools" \
+    && dnf -y install git cmake wget libcurl-devel curl shaderc
 
 # 3. Clone and build llama.cpp with Vulkan support
 WORKDIR /build
@@ -25,15 +26,16 @@ RUN git clone https://github.com/ggml-org/llama.cpp.git . \
 
 # -----------------------------------------------------------------------------
 # Final runtime image
-FROM fedora:40
+FROM almalinux:9
 
 USER 0
 
-# 1. Install patched mesa driver in the runtime image
-RUN dnf -y install dnf-plugins-core \
+# 1. Enable EPEL + CRB and install patched mesa driver in the runtime image
+RUN dnf -y install dnf-plugins-core epel-release \
+    && dnf config-manager --set-enabled crb \
     && dnf -y install dnf-plugin-versionlock \
     && dnf -y install mesa-vulkan-drivers vulkan-loader vulkan-tools \
-    && dnf -y copr enable slp/mesa-krunkit fedora-40-aarch64 \
+    && dnf -y copr enable slp/mesa-krunkit epel-9-aarch64 \
     && dnf -y downgrade mesa-vulkan-drivers.aarch64 --repo=copr:copr.fedorainfracloud.org:slp:mesa-krunkit \
     && dnf versionlock mesa-vulkan-drivers \
     && dnf clean all \
