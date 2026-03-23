@@ -5,13 +5,12 @@ FROM almalinux:9 AS builder
 
 USER 0
 
-# 1. Enable EPEL + CRB, then install patched mesa driver for GPU remoting (virtio-gpu Venus)
+# 1. Enable EPEL + CRB + COPR, then install patched mesa driver for GPU remoting (virtio-gpu Venus)
 RUN dnf -y install dnf-plugins-core epel-release \
     && dnf config-manager --set-enabled crb \
     && dnf -y install dnf-plugin-versionlock \
-    && dnf -y install mesa-vulkan-drivers vulkan-loader-devel vulkan-headers vulkan-tools \
     && dnf -y copr enable slp/mesa-krunkit epel-9-aarch64 \
-    && dnf -y downgrade mesa-vulkan-drivers.aarch64 --repo=copr:copr.fedorainfracloud.org:slp:mesa-krunkit \
+    && dnf -y install mesa-vulkan-drivers vulkan-loader-devel vulkan-headers vulkan-tools \
     && dnf versionlock mesa-vulkan-drivers
 
 # 2. Install build dependencies for llama.cpp
@@ -30,13 +29,12 @@ FROM almalinux:9
 
 USER 0
 
-# 1. Enable EPEL + CRB and install patched mesa driver in the runtime image
+# 1. Enable EPEL + CRB + COPR and install patched mesa driver in the runtime image
 RUN dnf -y install dnf-plugins-core epel-release \
     && dnf config-manager --set-enabled crb \
     && dnf -y install dnf-plugin-versionlock \
-    && dnf -y install mesa-vulkan-drivers vulkan-loader vulkan-tools \
     && dnf -y copr enable slp/mesa-krunkit epel-9-aarch64 \
-    && dnf -y downgrade mesa-vulkan-drivers.aarch64 --repo=copr:copr.fedorainfracloud.org:slp:mesa-krunkit \
+    && dnf -y install mesa-vulkan-drivers vulkan-loader vulkan-tools \
     && dnf versionlock mesa-vulkan-drivers \
     && dnf clean all \
     && rm -rf /var/cache/dnf
