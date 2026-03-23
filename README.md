@@ -22,17 +22,26 @@ brew install krunkit
 
 ## 2. Initialize the Podman Machine
 
-```bash
-export CONTAINERS_MACHINE_PROVIDER="libkrun"
+> **Important:** The `libkrun` provider must be set **before** running `podman machine init`. If you already have a default machine, remove it first.
 
-podman machine init --cpus 4 --memory 8192 --disk-size 100
-podman machine start
+```bash
+# Persist the provider in your shell profile (do this first)
+echo 'export CONTAINERS_MACHINE_PROVIDER="libkrun"' >> ~/.zshrc
+source ~/.zshrc
 ```
 
-Add the export to your shell profile so it persists:
+If you already initialized a machine with the default provider, remove it:
 
 ```bash
-echo 'export CONTAINERS_MACHINE_PROVIDER="libkrun"' >> ~/.zshrc
+podman machine stop
+podman machine rm
+```
+
+Then initialize a new machine with `libkrun`:
+
+```bash
+podman machine init --cpus 4 --memory 8192 --disk-size 100
+podman machine start
 ```
 
 Verify GPU access:
@@ -41,6 +50,8 @@ Verify GPU access:
 podman machine ssh ls /dev/dri
 # Expected: by-path  card0  renderD128
 ```
+
+If `/dev/dri` is missing, the machine is not using `libkrun`. Run `podman machine rm` and retry after confirming `echo $CONTAINERS_MACHINE_PROVIDER` outputs `libkrun`.
 
 ---
 
