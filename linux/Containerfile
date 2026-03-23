@@ -1,0 +1,48 @@
+# Containerfile for llama.cpp with Vulkan support on Linux (x86_64)
+# Uses AlmaLinux 9 with standard EPEL Mesa Vulkan drivers (radv, anv).
+# No krunkit COPR — standard Mesa ICDs handle AMD, Intel, and NVIDIA (via vulkan ICD).
+# glslc is available in EPEL 9 x86_64, so no shaderc build stage needed.
+
+# -----------------------------------------------------------------------------
+# Stage 0: build llama-server with Vulkan support
+FROM almalinux:9 AS builder
+
+USER 0
+
+# 1. Enable EPEL + CRB and install standard Mesa Vulkan drivers
+RUN dnf -y install dnf-plugins-core epel-release \
+    && dnf config-manager --set-enabled crb \
+    && dnf -y install mesa-vulkan-drivers vulkan-loader-devel vulkan-headers vulkan-tools glslc
+
+# 2. Install build dependencies for llama.cpp
+RUN dnf -y install gcc gcc-c++ make git cmake wget libcurl-devel
+
+# 3. Clone and build llama.cpp with Vulkan support
+WORKDIR /build
+RUN git clone https://github.com/ggml-org/llama.cpp.git . \
+    && cmake -B build -D GGML_OPENMP=OFF -D GGML_VULKAN=ON \
+    && cmake --build build --config Release -j$(nproc) --target llama-server
+
+# -----------------------------------------------------------------------------
+# Final runtime image
+FROM almalinux:9
+
+USER 0
+
+# 1. Enable EPEL + CRB and install standard Mesa Vulkan drivers
+RUN dnf -y install dnf-plugins-core epel-release \
+    && dnf config-manager --set-enabled crb \
+    && dnf -y install mesa-vulkan-drivers vulkan-loader vulkan-tools \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
+
+# 2. Copy the compiled llama-server binary and all llama.cpp shared libraries
+WORKDIR /app
+COPY --from=builder /build/build/bin/ /app/
+ENV LD_LIBRARY_PATH=/app
+
+# 3. Expose the default server port
+EXPOSE 8080
+
+# 4. Set the entrypoint to the server
+ENTRYPOINT ["/app/llama-server"]

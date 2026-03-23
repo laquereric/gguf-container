@@ -1,0 +1,62 @@
+# Containerfile for llama.cpp with Vulkan support on Jetson Orin Nano 8G
+# Uses Ubuntu 22.04 ARM64 to match the JetPack 6 userspace.
+# The NVIDIA Vulkan ICD is provided by JetPack on the host and injected
+# at runtime — only vulkan-loader is needed in the image.
+# glslc is not available in Ubuntu 22.04 ARM64 repos, so it is built
+# from source (google/shaderc), same approach as the macOS image.
+
+# -----------------------------------------------------------------------------
+# Stage 0: build glslc from source (shaderc)
+FROM ubuntu:22.04 AS shaderc-builder
+
+RUN apt-get update && apt-get install -y \
+    gcc g++ make git cmake python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /shaderc
+RUN git clone https://github.com/google/shaderc . \
+    && python3 utils/git-sync-deps \
+    && cmake -DCMAKE_BUILD_TYPE=Release \
+             -DSHADERC_SKIP_TESTS=ON \
+             -DSHADERC_ENABLE_SHARED_CRT=ON \
+             -DCMAKE_INSTALL_PREFIX=/shaderc/install \
+             -B build \
+    && cmake --build build -j$(nproc) \
+    && cmake --install build
+
+# -----------------------------------------------------------------------------
+# Stage 1: build llama-server with Vulkan support
+FROM ubuntu:22.04 AS builder
+
+RUN apt-get update && apt-get install -y \
+    gcc g++ make git cmake wget \
+    libvulkan-dev vulkan-tools libcurl4-openssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy glslc from the shaderc build stage
+COPY --from=shaderc-builder /shaderc/install/bin/glslc /usr/local/bin/glslc
+
+# Clone and build llama.cpp with Vulkan support
+WORKDIR /build
+RUN git clone https://github.com/ggml-org/llama.cpp.git . \
+    && cmake -B build -D GGML_OPENMP=OFF -D GGML_VULKAN=ON \
+    && cmake --build build --config Release -j$(nproc) --target llama-server
+
+# -----------------------------------------------------------------------------
+# Final runtime image
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get install -y \
+    libvulkan1 vulkan-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the compiled llama-server binary and all llama.cpp shared libraries
+WORKDIR /app
+COPY --from=builder /build/build/bin/ /app/
+ENV LD_LIBRARY_PATH=/app
+
+# Expose the default server port
+EXPOSE 8080
+
+# Set the entrypoint to the server
+ENTRYPOINT ["/app/llama-server"]
