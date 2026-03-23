@@ -1,0 +1,116 @@
+# llama-1b-container
+
+Run **Llama-3.2-1B-Instruct** with GPU acceleration on any Apple Silicon Mac using a Podman container and `libkrun`. The Linux container accesses your Mac's Metal GPU via the Venus Vulkan translation layer — no CUDA, no cloud, fully local.
+
+## Requirements
+
+- Apple Silicon Mac (M1/M2/M3/M4)
+- [Homebrew](https://brew.sh)
+- ~10 GB free disk space (image build + model)
+
+---
+
+## 1. Install Dependencies
+
+```bash
+brew install podman
+brew tap slp/krunkit
+brew install krunkit
+```
+
+---
+
+## 2. Initialize the Podman Machine
+
+```bash
+export CONTAINERS_MACHINE_PROVIDER="libkrun"
+
+podman machine init --cpus 4 --memory 8192 --disk-size 100
+podman machine start
+```
+
+Add the export to your shell profile so it persists:
+
+```bash
+echo 'export CONTAINERS_MACHINE_PROVIDER="libkrun"' >> ~/.zshrc
+```
+
+Verify GPU access:
+
+```bash
+podman machine ssh ls /dev/dri
+# Expected: by-path  card0  renderD128
+```
+
+---
+
+## 3. Build the Container Image
+
+```bash
+podman build -t llama-cpp-vulkan -f Containerfile.llama-vulkan .
+```
+
+This installs a patched MESA driver (`slp/mesa-krunkit`) inside the container that talks to the `virtio-gpu` device exposed by `libkrun`.
+
+---
+
+## 4. Download the Model
+
+```bash
+mkdir -p ~/models
+curl -L -o ~/models/Llama-3.2-1B-Instruct-Q4_K_M.gguf \
+  "https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf"
+```
+
+---
+
+## 5. Run the Server
+
+```bash
+podman run --rm -it \
+  --device /dev/dri \
+  -v ~/models:/models \
+  -p 8080:8080 \
+  llama-cpp-vulkan \
+  -m /models/Llama-3.2-1B-Instruct-Q4_K_M.gguf \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --n-gpu-layers 99
+```
+
+| Flag | Purpose |
+|------|---------|
+| `--device /dev/dri` | Passes the virtualized GPU into the container |
+| `-v ~/models:/models` | Mounts your local models folder |
+| `--n-gpu-layers 99` | Offloads all layers to the Vulkan GPU |
+
+---
+
+## 6. Query the API
+
+The server exposes an OpenAI-compatible API:
+
+```bash
+curl http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "llama",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+```
+
+---
+
+## How It Works
+
+```
+macOS Metal GPU
+      │
+  libkrun VM  (krunkit hypervisor)
+      │  virtio-gpu (Venus protocol)
+  Fedora 40 container
+      │  Vulkan (patched mesa-krunkit driver)
+  llama.cpp (llama-server)
+```
+
+`libkrun` creates a lightweight VM that exposes the host GPU as a `virtio-gpu` device. The patched Mesa driver inside the container translates Vulkan calls over that device back to Metal on the host.

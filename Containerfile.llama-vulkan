@@ -1,0 +1,50 @@
+# Containerfile for llama.cpp with Vulkan support on macOS (via libkrun)
+# Based on Fedora 40 to use the patched mesa-krunkit drivers
+
+FROM fedora:40 AS builder
+
+USER 0
+
+# 1. Install patched mesa driver for GPU remoting (virtio-gpu Venus)
+RUN dnf -y install dnf-plugins-core \
+    && dnf -y install dnf-plugin-versionlock \
+    && dnf -y install mesa-vulkan-drivers vulkan-loader-devel vulkan-headers vulkan-tools \
+    && dnf -y copr enable slp/mesa-krunkit fedora-40-aarch64 \
+    && dnf -y downgrade mesa-vulkan-drivers.aarch64 --repo=copr:copr.fedorainfracloud.org:slp:mesa-krunkit \
+    && dnf versionlock mesa-vulkan-drivers
+
+# 2. Install build dependencies for llama.cpp
+RUN dnf -y install git @development-tools gcc-c++ \
+    cmake wget libcurl-devel curl glslc
+
+# 3. Clone and build llama.cpp with Vulkan support
+WORKDIR /build
+RUN git clone https://github.com/ggml-org/llama.cpp.git . \
+    && cmake -B build -D GGML_OPENMP=OFF -D GGML_VULKAN=ON \
+    && cmake --build build --config Release -j$(nproc) --target llama-server
+
+# -----------------------------------------------------------------------------
+# Final runtime image
+FROM fedora:40
+
+USER 0
+
+# 1. Install patched mesa driver in the runtime image
+RUN dnf -y install dnf-plugins-core \
+    && dnf -y install dnf-plugin-versionlock \
+    && dnf -y install mesa-vulkan-drivers vulkan-loader vulkan-tools \
+    && dnf -y copr enable slp/mesa-krunkit fedora-40-aarch64 \
+    && dnf -y downgrade mesa-vulkan-drivers.aarch64 --repo=copr:copr.fedorainfracloud.org:slp:mesa-krunkit \
+    && dnf versionlock mesa-vulkan-drivers \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
+
+# 2. Copy the compiled llama-server binary
+WORKDIR /app
+COPY --from=builder /build/build/bin/llama-server /app/llama-server
+
+# 3. Expose the default server port
+EXPOSE 8080
+
+# 4. Set the entrypoint to the server
+ENTRYPOINT ["/app/llama-server"]
