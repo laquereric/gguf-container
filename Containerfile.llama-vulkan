@@ -63,9 +63,10 @@ RUN dnf -y install dnf-plugins-core epel-release \
     && dnf clean all \
     && rm -rf /var/cache/dnf
 
-# 2. Copy the compiled llama-server binary
+# 2. Copy the compiled llama-server binary and all llama.cpp shared libraries
 WORKDIR /app
-COPY --from=builder /build/build/bin/llama-server /app/llama-server
+COPY --from=builder /build/build/bin/ /app/
+ENV LD_LIBRARY_PATH=/app
 
 # 3. Expose the default server port
 EXPOSE 8080
