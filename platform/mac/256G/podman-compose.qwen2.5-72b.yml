@@ -1,0 +1,41 @@
+# =============================================================================
+# podman-compose.qwen2.5-72b.yml — Qwen2.5-72B-Instruct  •  Q8_0  •  ~77 GB
+# Near-lossless multilingual quality; 100+ languages; 128K context; Apache 2.0
+# At 256 GB: extremely comfortable — 64K context window with full KV budget
+# Best open-weights multilingual model at near-lossless quality
+#
+# Download (sharded — llama-server auto-loads all shards from first file):
+#   huggingface-cli download bartowski/Qwen2.5-72B-Instruct-GGUF \
+#     --include "Qwen2.5-72B-Instruct-Q8_0*.gguf" \
+#     --local-dir ~/models
+#
+# Usage:
+#   podman-compose -f podman-compose.qwen2.5-72b.yml up
+#
+# RAM budget at 256G: ~77 GB model; ~179 GB remaining — maximum headroom
+# =============================================================================
+
+name: llama-mac-256g-qwen2-5-72b
+
+services:
+  llama-server:
+    image: localhost/llama-cpp-vulkan:latest
+    restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      - ${HOME}/models:/models:z
+    ports:
+      - "8080:8080"
+    command: >
+      -m /models/Qwen2.5-72B-Instruct-Q8_0-00001-of-00002.gguf
+      --host 0.0.0.0
+      --port 8080
+      --n-gpu-layers 99
+      --ctx-size 65536
+      --flash-attn
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

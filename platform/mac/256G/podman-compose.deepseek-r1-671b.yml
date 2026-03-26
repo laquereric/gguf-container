@@ -1,0 +1,41 @@
+# =============================================================================
+# podman-compose.deepseek-r1-671b.yml — DeepSeek-R1 671B  •  IQ1_S dynamic  •  ~170 GB
+# Frontier reasoning model; matches OpenAI o1 on math/science/coding; Apache 2.0
+# MoE architecture; Unsloth dynamic quant preserves quality at extreme compression
+# Generates thinking tokens — total output is much longer than the final answer
+#
+# Download (sharded — llama-server auto-loads all shards from first file):
+#   huggingface-cli download unsloth/DeepSeek-R1-GGUF \
+#     --include "DeepSeek-R1-IQ1_S*.gguf" \
+#     --local-dir ~/models
+#
+# Usage:
+#   podman-compose -f podman-compose.deepseek-r1-671b.yml up
+#
+# RAM budget at 256G: ~170 GB model; ~86 GB remaining for OS + KV cache — comfortable
+# =============================================================================
+
+name: llama-mac-256g-deepseek-r1-671b
+
+services:
+  llama-server:
+    image: localhost/llama-cpp-vulkan:latest
+    restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      - ${HOME}/models:/models:z
+    ports:
+      - "8080:8080"
+    command: >
+      -m /models/DeepSeek-R1-IQ1_S-00001-of-00003.gguf
+      --host 0.0.0.0
+      --port 8080
+      --n-gpu-layers 99
+      --ctx-size 8192
+      --flash-attn
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

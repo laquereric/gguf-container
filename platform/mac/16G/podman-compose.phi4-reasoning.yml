@@ -1,0 +1,39 @@
+# =============================================================================
+# podman-compose.phi4-reasoning.yml — Phi-4-reasoning  •  Q4_K_M  •  ~8.5 GB
+# Same size as Phi-4 but trained for chain-of-thought; o1-mini class math
+# MIT license; best for structured reasoning, proofs, and math problems
+#
+# Download:
+#   huggingface-cli download unsloth/Phi-4-reasoning-GGUF \
+#     Phi-4-reasoning-Q4_K_M.gguf --local-dir ~/models
+#
+# Usage:
+#   podman-compose -f podman-compose.phi4-reasoning.yml up
+#
+# RAM budget at 16G: ~8.5 GB model; ~7.5 GB remaining for OS + KV cache — comfortable
+# =============================================================================
+
+name: llama-mac-16g-phi4-reasoning
+
+services:
+  llama-server:
+    image: localhost/llama-cpp-vulkan:latest
+    restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      - ${HOME}/models:/models:z
+    ports:
+      - "8080:8080"
+    command: >
+      -m /models/Phi-4-reasoning-Q4_K_M.gguf
+      --host 0.0.0.0
+      --port 8080
+      --n-gpu-layers 99
+      --ctx-size 8192
+      --flash-attn
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

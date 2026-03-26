@@ -1,0 +1,41 @@
+# =============================================================================
+# podman-compose.command-r-plus.yml — Command-R+ 104B  •  Q8_0  •  ~110 GB
+# Near-lossless RAG quality at full 104B capacity; 23 languages; 128K context
+# CC-BY-NC license — non-commercial use only without a Cohere enterprise agreement
+# Q8_0 gives maximum quality — best document synthesis and grounded output
+#
+# Download (sharded — llama-server auto-loads all shards from first file):
+#   huggingface-cli download bartowski/c4ai-command-r-plus-GGUF \
+#     --include "c4ai-command-r-plus-Q8_0*.gguf" \
+#     --local-dir ~/models
+#
+# Usage:
+#   podman-compose -f podman-compose.command-r-plus.yml up
+#
+# RAM budget at 256G: ~110 GB model; ~146 GB remaining — very comfortable
+# =============================================================================
+
+name: llama-mac-256g-command-r-plus
+
+services:
+  llama-server:
+    image: localhost/llama-cpp-vulkan:latest
+    restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      - ${HOME}/models:/models:z
+    ports:
+      - "8080:8080"
+    command: >
+      -m /models/c4ai-command-r-plus-Q8_0-00001-of-00004.gguf
+      --host 0.0.0.0
+      --port 8080
+      --n-gpu-layers 99
+      --ctx-size 65536
+      --flash-attn
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

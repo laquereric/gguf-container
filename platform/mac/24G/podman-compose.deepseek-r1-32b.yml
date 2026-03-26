@@ -1,0 +1,41 @@
+# =============================================================================
+# podman-compose.deepseek-r1-32b.yml — DeepSeek-R1-Distill-Qwen-32B  •  Q4_K_M  •  ~19.9 GB
+# Best reasoning on 24 GB; o1-class chain-of-thought; Apache 2.0
+# Note: thinking tokens make total generation longer than final answer alone
+#
+# ⚠  CLOSE ALL OTHER APPS — leaves ~4 GB for OS + KV cache
+#
+# Download:
+#   huggingface-cli download bartowski/DeepSeek-R1-Distill-Qwen-32B-GGUF \
+#     DeepSeek-R1-Distill-Qwen-32B-Q4_K_M.gguf --local-dir ~/models
+#
+# Usage:
+#   podman-compose -f podman-compose.deepseek-r1-32b.yml up
+#
+# RAM budget at 24G: ~19.9 GB model; ~4 GB remaining for OS + KV cache — tight
+# =============================================================================
+
+name: llama-mac-24g-deepseek-r1-32b
+
+services:
+  llama-server:
+    image: localhost/llama-cpp-vulkan:latest
+    restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      - ${HOME}/models:/models:z
+    ports:
+      - "8080:8080"
+    command: >
+      -m /models/DeepSeek-R1-Distill-Qwen-32B-Q4_K_M.gguf
+      --host 0.0.0.0
+      --port 8080
+      --n-gpu-layers 99
+      --ctx-size 8192
+      --flash-attn
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

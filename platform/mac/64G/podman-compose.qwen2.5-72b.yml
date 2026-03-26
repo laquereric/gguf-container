@@ -1,0 +1,39 @@
+# =============================================================================
+# podman-compose.qwen2.5-72b.yml — Qwen2.5-72B-Instruct  •  Q4_K_M  •  ~43 GB
+# Best multilingual model for 64 GB Mac; 100+ languages; 128K context; Apache 2.0
+# Strong at multilingual tasks, writing, and general reasoning
+#
+# Download:
+#   huggingface-cli download bartowski/Qwen2.5-72B-Instruct-GGUF \
+#     Qwen2.5-72B-Instruct-Q4_K_M.gguf --local-dir ~/models
+#
+# Usage:
+#   podman-compose -f podman-compose.qwen2.5-72b.yml up
+#
+# RAM budget at 64G: ~43 GB model; ~21 GB remaining for OS + KV cache — comfortable
+# =============================================================================
+
+name: llama-mac-64g-qwen2-5-72b
+
+services:
+  llama-server:
+    image: localhost/llama-cpp-vulkan:latest
+    restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      - ${HOME}/models:/models:z
+    ports:
+      - "8080:8080"
+    command: >
+      -m /models/Qwen2.5-72B-Instruct-Q4_K_M.gguf
+      --host 0.0.0.0
+      --port 8080
+      --n-gpu-layers 99
+      --ctx-size 16384
+      --flash-attn
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

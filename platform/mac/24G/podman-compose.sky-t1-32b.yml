@@ -1,0 +1,41 @@
+# =============================================================================
+# podman-compose.sky-t1-32b.yml — Sky-T1-32B-Preview  •  Q4_K_M  •  ~20 GB
+# o1-preview competitive on AIME/MATH; RL fine-tune of Qwen2.5-32B; Apache 2.0
+# Strong reasoning and math; 128K context
+#
+# ⚠  CLOSE ALL OTHER APPS — leaves ~4 GB for OS + KV cache
+#
+# Download:
+#   huggingface-cli download NovaSky-UC/Sky-T1-32B-Preview-GGUF \
+#     Sky-T1-32B-Preview-Q4_K_M.gguf --local-dir ~/models
+#
+# Usage:
+#   podman-compose -f podman-compose.sky-t1-32b.yml up
+#
+# RAM budget at 24G: ~20 GB model; ~4 GB remaining for OS + KV cache — tight
+# =============================================================================
+
+name: llama-mac-24g-sky-t1-32b
+
+services:
+  llama-server:
+    image: localhost/llama-cpp-vulkan:latest
+    restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      - ${HOME}/models:/models:z
+    ports:
+      - "8080:8080"
+    command: >
+      -m /models/Sky-T1-32B-Preview-Q4_K_M.gguf
+      --host 0.0.0.0
+      --port 8080
+      --n-gpu-layers 99
+      --ctx-size 8192
+      --flash-attn
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

@@ -1,0 +1,40 @@
+# =============================================================================
+# podman-compose.deepseek-r1-32b.yml — DeepSeek-R1-Distill-Qwen-32B  •  Q5_K_M  •  ~23 GB
+# Best reasoning; comfortable fit on 32 GB with full KV cache headroom; Apache 2.0
+# Q5_K_M gives ~98% of F16 quality vs ~95% at Q4_K_M — worth it here
+# Note: generates thinking tokens — total output is longer than the final answer
+#
+# Download:
+#   huggingface-cli download bartowski/DeepSeek-R1-Distill-Qwen-32B-GGUF \
+#     DeepSeek-R1-Distill-Qwen-32B-Q5_K_M.gguf --local-dir ~/models
+#
+# Usage:
+#   podman-compose -f podman-compose.deepseek-r1-32b.yml up
+#
+# RAM budget at 32G: ~23 GB model; ~9 GB remaining for OS + KV cache — comfortable
+# =============================================================================
+
+name: llama-mac-32g-deepseek-r1-32b
+
+services:
+  llama-server:
+    image: localhost/llama-cpp-vulkan:latest
+    restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      - ${HOME}/models:/models:z
+    ports:
+      - "8080:8080"
+    command: >
+      -m /models/DeepSeek-R1-Distill-Qwen-32B-Q5_K_M.gguf
+      --host 0.0.0.0
+      --port 8080
+      --n-gpu-layers 99
+      --ctx-size 16384
+      --flash-attn
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

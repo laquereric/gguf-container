@@ -1,0 +1,40 @@
+# =============================================================================
+# podman-compose.llama3.3-70b.yml — Llama-3.3-70B-Instruct  •  Q8_0  •  ~75 GB
+# Near-lossless quality (~99.9% of F16); best dense 70B model; Meta license
+# 128K context; generous KV cache headroom on 128 GB
+#
+# Download (sharded — llama-server auto-loads all shards from first file):
+#   huggingface-cli download bartowski/Llama-3.3-70B-Instruct-GGUF \
+#     --include "Llama-3.3-70B-Instruct-Q8_0*.gguf" \
+#     --local-dir ~/models
+#
+# Usage:
+#   podman-compose -f podman-compose.llama3.3-70b.yml up
+#
+# RAM budget at 128G: ~75 GB model; ~53 GB remaining for OS + KV cache — comfortable
+# =============================================================================
+
+name: llama-mac-128g-llama3-3-70b
+
+services:
+  llama-server:
+    image: localhost/llama-cpp-vulkan:latest
+    restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      - ${HOME}/models:/models:z
+    ports:
+      - "8080:8080"
+    command: >
+      -m /models/Llama-3.3-70B-Instruct-Q8_0-00001-of-00002.gguf
+      --host 0.0.0.0
+      --port 8080
+      --n-gpu-layers 99
+      --ctx-size 32768
+      --flash-attn
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
