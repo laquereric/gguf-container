@@ -54,12 +54,24 @@ def wait_for_api(timeout: 120, interval: 3)
   false
 end
 
-def run_ok
-  Dir.chdir(MAC_DIR)
+def container_running?
+  `podman ps --filter name=llama-server --format '{{.Names}}'`.strip == "llama-server"
+end
 
-  %w[install start pull download].each { |step| run_script(COMMANDS[step][:script]) }
+def stop_existing_container
+  if container_running?
+    puts "==> stopping existing llama-server container"
+    system("podman", "stop", "llama-server")
+  end
+end
 
-  puts "\n==> starting container (detached)"
+def restart_machine
+  puts "==> restarting podman machine to clear stale proxy"
+  system("podman machine stop")
+  system("podman machine start")
+end
+
+def start_container
   system(
     "podman", "run", "--rm", "-d",
     "--device", "/dev/dri",
@@ -71,7 +83,22 @@ def run_ok
     "--host", "0.0.0.0",
     "--port", PORT.to_s,
     "--n-gpu-layers", "99"
-  ) || abort("  FAILED: could not start container")
+  )
+end
+
+def run_ok
+  Dir.chdir(MAC_DIR)
+
+  %w[install start pull download].each { |step| run_script(COMMANDS[step][:script]) }
+
+  stop_existing_container
+
+  puts "\n==> starting container (detached)"
+  unless start_container
+    puts "==> container start failed — restarting machine and retrying"
+    restart_machine
+    start_container || abort("  FAILED: could not start container after machine restart")
+  end
 
   puts "==> waiting for API at #{API_URL}"
   result = wait_for_api
